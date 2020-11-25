@@ -1,0 +1,20 @@
+#!/bin/bash
+
+#SBATCH -A ccsi
+#SBATCH -p batch
+#SBATCH -N 1
+#SBATCH -n 8
+#SBATCH -c 1
+#SBATCH -J manning_n-MANN
+#SBATCH --mem=8G
+#SBATCH -t 4:00:00
+#SBATCH -o ./out.log
+#SBATCH -e ./out.err
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=coonet@ornl.gov
+#SBATCH --chdir ./manning_n-MANN
+
+module load ats/master/opt/PE-gnu-3.0
+date
+mpiexec -n 8 ats --xml_file=../input/manning_n-MANN.xml
+date

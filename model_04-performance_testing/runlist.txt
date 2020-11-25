@@ -1,0 +1,1 @@
+0_baseline 1_no_ddivqdT 1_yes_ddivsurfqdT 1_no_ddivqEdp 1_yes_ddivhqdp 1_yes_surface_advection 4_boomer_2cycles 4_boomer_3sweeps 4_boomer_65strongthreshold 4_boomer_useblockindices 4_ilu 5_gmres_3its 5_gmres_10its 5_none
