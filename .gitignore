@@ -2,3 +2,6 @@
 ats_vis*
 ats_mesh*
 *.sbatch
+checkpoint*.h5
+out.log
+out.err

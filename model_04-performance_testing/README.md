@@ -73,3 +73,19 @@ both years) to look at the dependency of discharge on Manning's n.
 
 
 
+. print_result.sh | sort -k2 -n
+
+4_boomer_3sweeps 3187
+4_ilu 3359
+4_boomer_2cycles 3513
+1_no_ddivqEdp 3637
+1_no_ddivqdT 3952
+4_boomer_65strongthreshold 4090
+5_gmres_10its 4134
+0_baseline 4196
+5_gmres_3its 4220
+1_yes_surface_advection 4269
+1_yes_ddivsurfqdT 5575
+1_yes_ddivhqdp 12409
+5_none 13682
+4_boomer_useblockindices 13683
