@@ -74,15 +74,16 @@
     </ParameterList>
 
     <ParameterList name="toeslope observation point" type="ParameterList">
-      <ParameterList name="region: point" type="ParameterList">
-        <Parameter name="coordinate" type="Array(double)" value="{-5.648,8.47994.}" />
+      <ParameterList name="region: box" type="ParameterList">
+        <Parameter name="low coordinate" type="Array(double)" value="{-5.7,8.4}" />
+        <Parameter name="high coordinate" type="Array(double)" value="{-5.6,8.5}" />
       </ParameterList>
     </ParameterList>
 
     <ParameterList name="hillslope observation point" type="ParameterList">
-      <ParameterList name="region: point" type="ParameterList">
-        <Parameter name="coordinate" type="Array(double)" value="{-593.0395,890.3934}" />
-<!--        <Parameter name="coordinate" type="Array(double)" value="{-608.56,880.84}" />-->
+      <ParameterList name="region: box" type="ParameterList">
+        <Parameter name="low coordinate" type="Array(double)" value="{-594.,890.}" />
+        <Parameter name="high coordinate" type="Array(double)" value="{-593.,891.}" />
       </ParameterList>
     </ParameterList>
 
@@ -915,6 +916,7 @@
       </ParameterList>
 
       <!-- evals used for observations only -->
+<!--
       <ParameterList name="surface-thaw_depth" type="ParameterList">
         <Parameter name="field evaluator type" type="string" value="thaw depth" />
       </ParameterList>
@@ -922,8 +924,9 @@
       <ParameterList name="surface-water_table_depth" type="ParameterList">
         <Parameter name="field evaluator type" type="string" value="water table depth" />
       </ParameterList>
-    </ParameterList>
+-->
 
+    </ParameterList>
     <ParameterList name="initial conditions" type="ParameterList">
 
       <ParameterList name="snow-age" type="ParameterList">
@@ -1032,6 +1035,7 @@
 	  <Parameter name="functional" type="string" value="average" />
 	  <Parameter name="location name" type="string" value="cell" />
 	</ParameterList>
+<!--
 	<ParameterList name="hillslope: thaw depth" type="ParameterList">
 	  <Parameter name="variable" type="string" value="surface-thaw_depth" />
 	  <Parameter name="region" type="string" value="hillslope observation point" />
@@ -1044,6 +1048,7 @@
 	  <Parameter name="functional" type="string" value="average" />
 	  <Parameter name="location name" type="string" value="cell" />
 	</ParameterList>
+-->
       </ParameterList>
     </ParameterList>
 
@@ -1073,6 +1078,7 @@
 	  <Parameter name="functional" type="string" value="average" />
 	  <Parameter name="location name" type="string" value="cell" />
 	</ParameterList>
+<!--
 	<ParameterList name="toeslope: thaw depth" type="ParameterList">
 	  <Parameter name="variable" type="string" value="surface-thaw_depth" />
 	  <Parameter name="region" type="string" value="toeslope observation point" />
@@ -1085,6 +1091,7 @@
 	  <Parameter name="functional" type="string" value="average" />
 	  <Parameter name="location name" type="string" value="cell" />
 	</ParameterList>
+-->
       </ParameterList>
     </ParameterList>
   </ParameterList>
