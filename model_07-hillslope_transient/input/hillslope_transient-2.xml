@@ -99,7 +99,8 @@
   <ParameterList name="cycle driver" type="ParameterList">
     <Parameter name="start time" type="double" value="0.0" />
     <Parameter name="start time units" type="string" value="s" />
-    <Parameter name="wallclock duration [hrs]" type="double" value="13.8" />
+    <Parameter name="wallclock duration [hrs]" type="double" value="4.8" />
+    <Parameter name="end cycle" type="int" value="30000" />
     <Parameter name="end time" type="double" value="39.0" />
     <Parameter name="end time units" type="string" value="noleap" />
     <ParameterList name="required times" type="ParameterList">
@@ -176,9 +177,9 @@
     <ParameterList name="permafrost surface and subsurface" type="ParameterList">
       <Parameter name="PK type" type="string" value="permafrost model" />
       <Parameter name="PKs order" type="Array(string)" value="{subsurface flow, subsurface energy, surface flow, surface energy}" />
-      <Parameter name="supress Jacobian terms: d div q / dT" type="bool" value="true" /><!-- FLAG -->
+      <Parameter name="supress Jacobian terms: d div q / dT" type="bool" value="false" /><!-- FLAG -->
       <Parameter name="supress Jacobian terms: d div surface q / dT" type="bool" value="true" />
-      <Parameter name="supress Jacobian terms: d div K grad T / dp" type="bool" value="true" /><!-- FLAG -->
+      <Parameter name="supress Jacobian terms: d div K grad T / dp" type="bool" value="false" /><!-- FLAG -->
       <Parameter name="supress Jacobian terms: d div hq / dp,T" type="bool" value="true" />
       <Parameter name="predictor type" type="string" value="smart ewc" />
       <Parameter name="preconditioner type" type="string" value="picard" />
