@@ -518,12 +518,12 @@ def downloadMeteorologyDayMet(hillslope_pars, raw_directory, filename_out):
 if __name__ == "__main__":
     huc = '190604020404'
     mesh_dx = 20
-    package_directory = '/Users/uec/research/interface/problems/hillslopes/delineation_automated/' 
+    package_directory = '/Users/uec/research/interface/problems/interface-hillslopes/'
     filenames = get_filenames(huc, package_directory)
 
     # set up directory structure for raw data
     workflow.ui.setup_logging(0)
-    raw_data_dir = os.path.join(package_directory, 'raw_data')
+    raw_data_dir = os.path.join(package_directory, 'data_preprocessed-meshing')
     if not os.path.isdir(raw_data_dir):
         os.mkdir(raw_data_dir)
 

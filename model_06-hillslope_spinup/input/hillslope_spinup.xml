@@ -4,7 +4,7 @@
       <Parameter name="build columns from set" type="string" value="surface" />
       <Parameter name="mesh type" type="string" value="read mesh file" />
       <ParameterList name="read mesh file parameters" type="ParameterList">
-        <Parameter name="file" type="string" value="../../meshes/huc_190604020404_subcatchment_8.exo" />
+        <Parameter name="file" type="string" value="../../meshes/huc_190604020404_hillslope_8.exo" />
         <Parameter name="format" type="string" value="Exodus II" />
       </ParameterList>
     </ParameterList>
@@ -34,7 +34,7 @@
     <ParameterList name="mineral" type="ParameterList">
       <ParameterList name="region: labeled set">
         <Parameter name="label" type="string" value="1000" />
-        <Parameter name="file" type="string" value="../../meshes/huc_190604020404_subcatchment_8.exo" />
+        <Parameter name="file" type="string" value="../../meshes/huc_190604020404_hillslope_8.exo" />
         <Parameter name="format" type="string" value="Exodus II" />
         <Parameter name="entity" type="string" value="cell" />
       </ParameterList>
@@ -42,7 +42,7 @@
     <ParameterList name="acrotelm" type="ParameterList">
       <ParameterList name="region: labeled set">
         <Parameter name="label" type="string" value="1001" />
-        <Parameter name="file" type="string" value="../../meshes/huc_190604020404_subcatchment_8.exo" />
+        <Parameter name="file" type="string" value="../../meshes/huc_190604020404_hillslope_8.exo" />
         <Parameter name="format" type="string" value="Exodus II" />
         <Parameter name="entity" type="string" value="cell" />
       </ParameterList>
@@ -50,7 +50,7 @@
     <ParameterList name="catotelm" type="ParameterList">
       <ParameterList name="region: labeled set">
         <Parameter name="label" type="string" value="1002" />
-        <Parameter name="file" type="string" value="../../meshes/huc_190604020404_subcatchment_8.exo" />
+        <Parameter name="file" type="string" value="../../meshes/huc_190604020404_hillslope_8.exo" />
         <Parameter name="format" type="string" value="Exodus II" />
         <Parameter name="entity" type="string" value="cell" />
       </ParameterList>
@@ -59,7 +59,7 @@
     <ParameterList name="surface" type="ParameterList">
       <ParameterList name="region: labeled set" type="ParameterList">
         <Parameter name="label" type="string" value="2" />
-        <Parameter name="file" type="string" value="../../meshes/huc_190604020404_subcatchment_8.exo" />
+        <Parameter name="file" type="string" value="../../meshes/huc_190604020404_hillslope_8.exo" />
         <Parameter name="format" type="string" value="Exodus II" />
         <Parameter name="entity" type="string" value="face" />
       </ParameterList>
@@ -67,7 +67,7 @@
     <ParameterList name="bottom face" type="ParameterList">
       <ParameterList name="region: labeled set" type="ParameterList">
         <Parameter name="label" type="string" value="1" />
-        <Parameter name="file" type="string" value="../../meshes/huc_190604020404_subcatchment_8.exo" />
+        <Parameter name="file" type="string" value="../../meshes/huc_190604020404_hillslope_8.exo" />
         <Parameter name="format" type="string" value="Exodus II" />
         <Parameter name="entity" type="string" value="face" />
       </ParameterList>
@@ -811,7 +811,7 @@
             <Parameter name="component" type="string" value="cell" />
             <ParameterList name="function" type="ParameterList">
               <ParameterList name="function-tabular" type="ParameterList">
-                <Parameter name="file" type="string" value="../../data_preprocessed-daymet/huc_190604020404_subcatchment_8_smooth.h5" />
+                <Parameter name="file" type="string" value="../../data_preprocessed-daymet/huc_190604020404_hillslope_8_smooth.h5" />
                 <Parameter name="x header" type="string" value="time [s]" />
                 <Parameter name="y header" type="string" value="incoming shortwave radiation [W m^-2]" />
               </ParameterList>
@@ -828,7 +828,7 @@
             <Parameter name="component" type="string" value="cell" />
             <ParameterList name="function" type="ParameterList">
               <ParameterList name="function-tabular" type="ParameterList">
-                <Parameter name="file" type="string" value="../../data_preprocessed-daymet/huc_190604020404_subcatchment_8_smooth.h5" />
+                <Parameter name="file" type="string" value="../../data_preprocessed-daymet/huc_190604020404_hillslope_8_smooth.h5" />
                 <Parameter name="x header" type="string" value="time [s]" />
                 <Parameter name="y header" type="string" value="air temperature [K]" />
               </ParameterList>
@@ -845,7 +845,7 @@
             <Parameter name="component" type="string" value="cell" />
             <ParameterList name="function" type="ParameterList">
               <ParameterList name="function-tabular" type="ParameterList">
-                <Parameter name="file" type="string" value="../../data_preprocessed-daymet/huc_190604020404_subcatchment_8_smooth.h5" />
+                <Parameter name="file" type="string" value="../../data_preprocessed-daymet/huc_190604020404_hillslope_8_smooth.h5" />
                 <Parameter name="x header" type="string" value="time [s]" />
                 <Parameter name="y header" type="string" value="relative humidity [-]" />
               </ParameterList>
@@ -862,7 +862,7 @@
             <Parameter name="component" type="string" value="cell" />
             <ParameterList name="function" type="ParameterList">
               <ParameterList name="function-tabular" type="ParameterList">
-                <Parameter name="file" type="string" value="../../data_preprocessed-daymet/huc_190604020404_subcatchment_8_smooth.h5" />
+                <Parameter name="file" type="string" value="../../data_preprocessed-daymet/huc_190604020404_hillslope_8_smooth.h5" />
                 <Parameter name="x header" type="string" value="time [s]" />
                 <Parameter name="y header" type="string" value="wind speed [m s^-1]" />
               </ParameterList>
@@ -879,7 +879,7 @@
             <Parameter name="component" type="string" value="cell" />
             <ParameterList name="function" type="ParameterList">
               <ParameterList name="function-tabular" type="ParameterList">
-                <Parameter name="file" type="string" value="../../data_preprocessed-daymet/huc_190604020404_subcatchment_8_smooth.h5" />
+                <Parameter name="file" type="string" value="../../data_preprocessed-daymet/huc_190604020404_hillslope_8_smooth.h5" />
                 <Parameter name="x header" type="string" value="time [s]" />
                 <Parameter name="y header" type="string" value="precipitation rain [m s^-1]" />
               </ParameterList>
@@ -896,7 +896,7 @@
             <Parameter name="component" type="string" value="cell" />
             <ParameterList name="function" type="ParameterList">
               <ParameterList name="function-tabular" type="ParameterList">
-                <Parameter name="file" type="string" value="../../data_preprocessed-daymet/huc_190604020404_subcatchment_8_smooth.h5" />
+                <Parameter name="file" type="string" value="../../data_preprocessed-daymet/huc_190604020404_hillslope_8_smooth.h5" />
                 <Parameter name="x header" type="string" value="time [s]" />
                 <Parameter name="y header" type="string" value="precipitation snow [m SWE s^-1]" />
               </ParameterList>
