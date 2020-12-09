@@ -159,6 +159,7 @@
       <Parameter name="PK type" type="string" value="permafrost model" />
       <Parameter name="PKs order" type="Array(string)" value="{subsurface flow, subsurface energy, surface flow, surface energy}" />
       <Parameter name="supress Jacobian terms: d div q / dT" type="bool" value="true" />
+      <Parameter name="supress Jacobian terms: d div surface q / dT" type="bool" value="true" />
       <Parameter name="supress Jacobian terms: d div K grad T / dp" type="bool" value="true" />
       <Parameter name="supress Jacobian terms: d div hq / dp,T" type="bool" value="true" />
       <Parameter name="preconditioner type" type="string" value="picard" />
