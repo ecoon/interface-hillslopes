@@ -10,6 +10,7 @@ import collections
 import logging
 import fiona, rasterio, shapely
 import rasterio.warp
+import shapely.ops
 import attr
 
 import workflow
@@ -25,7 +26,8 @@ import land_cover
 
 def get_filenames(huc, package_directory, raster_extension='tif'):
     """Set up the package directory and return a dictionary of filenames"""
-    huc_directory = os.path.join(package_directory, huc)
+    pp_dir = os.path.join(package_directory, 'data_preprocessed-meshing')
+    huc_directory = os.path.join(pp_dir, huc)
     if not os.path.isdir(huc_directory):
         os.mkdir(huc_directory)
 
@@ -64,8 +66,10 @@ def get_filenames(huc, package_directory, raster_extension='tif'):
     register_raster('flowpath_length', f'huc_{huc}_flowpath_lengths') # flowpaths within the delineated subcatchments
     register_raster('elev_above_streams', f'huc_{huc}_elev_above_streams')
 
-    filenames['mesh'] = os.path.join(package_directory, 'meshes', f'huc_{huc}_subcatchment_{{}}.exo')
-    filenames['daymet'] = os.path.join(package_directory, 'daymet', f'huc_{huc}_subcatchment_{{}}.h5')
+    filenames['hillslope_mesh'] = os.path.join(package_directory, 'meshes', f'huc_{huc}_hillslope_{{}}.exo')
+    filenames['subcatchment_mesh'] = os.path.join(package_directory, 'meshes', f'huc_{huc}_subcatchment_{{}}.exo')
+
+    filenames['daymet'] = os.path.join(package_directory, 'data_preprocessed-daymet', f'huc_{huc}_subcatchment_{{}}.h5')
     
     return filenames
 
@@ -211,9 +215,41 @@ def loadSubcatchmentShape(filename, subcatch_id, crs=None):
         raise RuntimeError("Found invalid subcatchments file or no subcatchment of this id.")
     return crs_new, matches[0]
 
-def loadSubcatchmentRaster(filename, subcatch, subcatch_crs, nanit=True):
+def smoothSubcatchmentShape(subcatch, subcatch_crs, smoothing_factor=100, plot=False):
+    """Smooths a subcatchment shape to get a better 3D run."""
+    if type(subcatch) is shapely.geometry.MultiPolygon:
+        subcatch_simp = shapely.ops.cascaded_union(subcatch.buffer(100))
+        if type(subcatch_simp) is shapely.geometry.MultiPolygon:
+            # see if this is one tiny island
+            total_area = sum(p.area for p in subcatch_simp)
+            assert(total_area > 0)
+            polygons = [p for p in subcatch_simp if p.area/total_area > 0.01]
+            if len(polygons) > 1:
+                # give up, this will throw
+                return shapely.geometry.MultiPolygon(polygons)
+            subcatch_simp = polygons[0]
+        subcatch_simp = subcatch_simp.simplify(smoothing_factor)
+    else:
+        subcatch_simp = subcatch.simplify(smoothing_factor)
+
+    # find a buffer value that matches the original area
+    def optimize_func(radius):
+        subcatch_buff = subcatch_simp.buffer(radius).simplify(smoothing_factor)
+        return abs(subcatch_buff.area - subcatch.area)
+ 
+    res = scipy.optimize.minimize_scalar(optimize_func)
+    subcatch_new = subcatch_simp.buffer(res.x).simplify(100)
+
+    if plot:
+        print("error: ", subcatch.area - subcatch_new.area)
+        fig, ax = workflow.plot.get_ax(crs=subcatch_crs)
+        workflow.plot.shply(subcatch_new, subcatch_crs, 'r', ax=ax)
+        workflow.plot.shply(subcatch, subcatch_crs, 'b', ax=ax)
+    return subcatch_new
+
+def loadSubcatchmentRaster(filename, subcatch, subcatch_crs, nanit=True, mask=True):
     """Load a raster on the subcatchment."""    
-    profile, raster = workflow.get_raster_on_shape(filename, subcatch, subcatch_crs, mask=True)
+    profile, raster = workflow.get_raster_on_shape(filename, subcatch, subcatch_crs, mask=mask)
     if nanit:
         raster[raster==profile['nodata']] = np.nan
     return profile, raster
@@ -236,12 +272,13 @@ def parameterizeSubcatchment(huc, sc, filenames,
     # get shape
     subcatch_crs, subcatch = loadSubcatchmentShape(filenames['subcatchments'], sc)
 
-
     # create a dictionary for hillslope parameters
     hillslope = dict(huc=huc, subcatchment_id=sc)
 
     # area in m^2
-    hillslope['total_area'] = workflow.warp.shply(subcatch, subcatch_crs, target_crs).area
+    hillslope['crs'] = target_crs
+    hillslope['subcatchment_shape'] = workflow.warp.shply(subcatch, subcatch_crs, target_crs)
+    hillslope['total_area'] = hillslope['subcatchment_shape'].area
 
     # centroid in lat/long
     hillslope['centroid'] = workflow.warp.shply(subcatch, subcatch_crs, workflow.crs.latlon_crs()).centroid.coords[0]
@@ -346,7 +383,12 @@ def parameterizeMesh(hillslope, dx,
         i += 1
         if i < len(z):
             slope = (z[i] - z[i-1])/(x[i] - x[i-1])
-
+    
+    if i == 1:
+        hillslope['riparian_width'] = 0
+    else:
+        hillslope['riparian_width'] = (x[i-1] + x[i-2])/2.
+        
     while i < len(z): # in the hillslope zone
         riparian[i-1] = False
         if slope < hillslope_slope_min:
@@ -396,7 +438,7 @@ def parameterizeMesh(hillslope, dx,
     return mesh
 
 
-def createMesh2D(mesh_pars):
+def createHillslopeMesh2D(mesh_pars):
     """Take mesh parameters and turn those into a 2D surface transect mesh."""
     labeled_sets = list()
     
@@ -415,6 +457,52 @@ def createMesh2D(mesh_pars):
     m2.transform(mat=workflow.mesh.transform_rotation(np.radians(rotation)))
     return m2
 
+
+def createSubcatchmentMesh2D(filenames, subcatch, subcatch_crs):
+    """Take the mesh parameters and create a 2D surface mesh."""
+    # triangulate the subcatchment
+    verts, tris, areas = workflow.triangulate([subcatch,], list(), refine_max_area=200, verbosity=0)
+    centroids = np.array([verts[t].mean(0) for t in tris])
+    
+    # elevate the triangulation
+    dem_profile, dem = workflow.get_raster_on_shape(filenames['dem'], subcatch.buffer(100), subcatch_crs, mask=False)
+    dem_crs = workflow.crs.from_rasterio(dem_profile['crs'])
+    verts3 = workflow.elevate(verts, subcatch_crs, dem, dem_profile)
+
+    # get a land cover raster
+    lc_profile, lc_raster = workflow.get_raster_on_shape(filenames['land_cover'], subcatch.buffer(100), 
+                                                     subcatch_crs, mask=False)
+    lc = workflow.values_from_raster(centroids, subcatch_crs, lc_raster, lc_profile)
+    lc = lc.astype(int)
+
+    # renumber from NSSI ids to our IDs (in place)
+    land_cover.classifyVegetation(lc)
+
+    # riparian vs hillslope
+    # -- load raster of flowpath length
+    fpl_profile, fpl_raster = workflow.get_raster_on_shape(filenames['flowpath_length'], subcatch.buffer(100),
+                                                subcatch_crs, mask=False)
+    fpl = workflow.values_from_raster(centroids, subcatch_crs, fpl_raster, fpl_profile)
+    riparian = np.where(fpl > hillslope_pars['riparian_width'], 1, 0)
+
+    # -- riparians are incremented by 10 for unique indices
+    lc = np.where(riparian, 10+lc, lc)
+    
+    #
+    # Create a 2D mesh
+    #
+    labeled_sets = list()
+    for i,vtype in zip(range(100, 104), land_cover.vegClasses()):
+        labeled_sets.append(workflow.mesh.LabeledSet(f'hillslope {vtype}', i, 'CELL', 
+                                             [int(c) for c in np.where(lc == i)[0]]))
+    for i,vtype in zip(range(110, 114), land_cover.vegClasses()):
+        labeled_sets.append(workflow.mesh.LabeledSet(f'riparian {vtype}', i, 'CELL', 
+                                             [int(c) for c in np.where(lc == i)[0]]))
+    
+    m2 = workflow.mesh.Mesh2D(verts3, tris, labeled_sets=labeled_sets)
+    return m2, lc
+    
+    
 def layeringStructure():
     """For now this is hard-coded, becuase it required significant experimentation."""
     # preparing layer extrusion data -- true for all transects
@@ -468,7 +556,7 @@ def layeringStructure():
 #
 # Construct the 3D mesh
 #
-def createMesh3D(m2, mesh_pars, layer_info, fname, clobber=False):
+def createHillslopeMesh3D(m2, mesh_pars, layer_info, fname, clobber=False):
     """Create the 3D mesh via extrusion"""
     if os.path.isfile(fname) and clobber:
         os.remove(fname)
@@ -497,6 +585,23 @@ def createColumnMesh(layer_info, soil_horizons, filename):
     m3 = workflow.mesh.Mesh3D.extruded_Mesh2D(m2, layer_types, layer_data, layer_ncells, layer_mat_ids)
     m3.write_exodus(filename)
 
+    
+def createSubcatchmentMesh3D(m2, lc, layer_info, fname, clobber=False):
+    """Create the 3D mesh via extrusion"""
+    if os.path.isfile(fname) and clobber:
+        os.remove(fname)
+
+    if not os.path.isfile(fname) or clobber:
+        layer_types, layer_data, layer_ncells = layer_info
+        
+        assert(len(lc) == m2.num_cells())
+        layer_mat_ids_near_surface = np.array([land_cover.soilStructure(layer_data, lc[c]) 
+                                               for c in range(m2.num_cells())]).transpose()
+        layer_mat_ids = list(layer_mat_ids_near_surface)
+    
+        # make the mesh, save it as an exodus file
+        m3 = workflow.mesh.Mesh3D.extruded_Mesh2D(m2, layer_types, layer_data, layer_ncells, layer_mat_ids)
+        m3.write_exodus(fname)
     
 
 #
@@ -532,10 +637,13 @@ if __name__ == "__main__":
     if not os.path.isdir(mesh_dir):
         os.mkdir(mesh_dir)
 
+    # common layering structure across all meshes
+    layering = layeringStructure()
+    
     # column mesh for spinup
     column_mesh_filename = os.path.join(package_directory, 'meshes', 'column.exo')
     if not os.path.isfile(column_mesh_filename):
-        layering = layeringStructure()
+        print(f'Generating mesh: {column_mesh_filename}')
         createColumnMesh(layering, land_cover.soil_horizons['average'], column_mesh_filename)
 
     # set up directory structure for forcing datasets
@@ -557,17 +665,34 @@ if __name__ == "__main__":
 
     for sc in range(1,numSubcatchments(filenames)+1):
         hillslope_pars = parameterizeSubcatchment(huc, sc, filenames, alaska_crs)
-        raise RuntimeError()
+        mesh_pars = parameterizeMesh(hillslope_pars, mesh_dx)
+        subcatch = hillslope_pars['subcatchment_shape']
+        crs = hillslope_pars['crs']
 
-        # make the mesh
-        mesh_filename = filenames['mesh'].format(sc)
+        # make the hillslope mesh
+        mesh_filename = filenames['hillslope_mesh'].format(sc)
         if not os.path.isfile(mesh_filename):
             print(f'Generating mesh: {mesh_filename}')
-            mesh_pars = parameterizeMesh(hillslope_pars, mesh_dx)
-            m2 = createMesh2D(mesh_pars)
-            layering = layeringStructure()
-            createMesh3D(m2, mesh_pars, layering, filenames['mesh'].format(sc), clobber=True)
+            m2 = createHillslopeMesh2D(mesh_pars)
+            createHillslopeMesh3D(m2, mesh_pars, layering, mesh_filename)
 
+        # make the subcatchment mesh
+        mesh_filename = filenames['subcatchment_mesh'].format(sc)
+        if not os.path.isfile(mesh_filename):
+            print(f'Generating mesh: {mesh_filename}')
+
+            subcatch_sm = smoothSubcatchmentShape(subcatch, crs, smoothing_factor=100)
+            if type(subcatch_sm) is shapely.geometry.MultiPolygon:
+                print("MULTIPOLYGON!")
+                fig, ax = workflow.plot.get_ax(crs=crs)
+                workflow.plot.shply(subcatch_sm, crs, 'r', ax=ax)
+                workflow.plot.shply(subcatch, crs, 'b', ax=ax)
+                plt.show()
+                raise RuntimeError
+
+            m2,lc = createSubcatchmentMesh2D(filenames, subcatch_sm, crs)
+            createSubcatchmentMesh3D(m2, lc, layering, mesh_filename)
+            
         # download daymet
         daymet_filename = filenames['daymet'].format(sc)
         if not os.path.isfile(daymet_filename):

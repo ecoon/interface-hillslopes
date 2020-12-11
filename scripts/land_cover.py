@@ -22,8 +22,8 @@ id_to_name = dict(zip(_lc_ids, _lc_names))
 # maps from coarse-binned class name to a list of names
 class_to_names = dict(
     sparse_veg=['Bare Ground','Sparsely Vegetated','Dwarf Shrub - Other','Open Water','Ice / Snow'],
-    shrub=['Birch Ericaceous Low Shrub','Low-Tall Willow','Alder'],
     sedge=['FWM: Carex Aquatillis', 'Mesic Sedge-Dwarf Shrub Tundra', 'Wet Sedge','Wet Sedge - Sphagnum'],
+    shrub=['Birch Ericaceous Low Shrub','Low-Tall Willow','Alder'],
     tussock=['Tussock Tundra','Tussock Shrub Tundra', 'Dwarf Shrub - Dryas']
     )
 
@@ -61,7 +61,8 @@ def vegClasses():
 def classifyVegetation(lc):
     """Remaps from NSSI IDs to classes: sparse_veg, sedge, shrub, and tussock.  INPLACE"""
     lc_vals = set(lc.ravel())
-    lc_vals.remove(255) # nan
+    if 255 in lc_vals:
+        lc_vals.remove(255) # nan
 
     for i,(vclass,ids) in enumerate(class_to_ids.items()):
         ats_id = 100 + i
