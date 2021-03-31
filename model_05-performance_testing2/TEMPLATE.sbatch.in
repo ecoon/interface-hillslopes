@@ -1,20 +1,18 @@
 #!/bin/bash
 
-#SBATCH -A ccsi
-#SBATCH -p batch
-#SBATCH -N 1
-#SBATCH -n 8
-#SBATCH -c 1
-#SBATCH -J MYJOBNAME
-#SBATCH --mem=8G
-#SBATCH -t 4:00:00
+#SBATCH --account=m3661
+#SBATCH --qos=debug
+#SBATCH --constraint=haswell
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=8
+#SBATCH --time=0:30:00
+#SBATCH --job-name=MYJOBNAME
 #SBATCH -o ./out.log
 #SBATCH -e ./out.err
-#SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=coonet@ornl.gov
 #SBATCH --chdir MYJOBNAME
 
-module load ats/master/opt/PE-gnu-3.0
+module load ats/master/cori-haswell/intel-6.0.5-mpich-7.7.10/opt
+module list
 date
-mpiexec -n 8 ats --xml_file=../input/MYJOBNAME.xml
+srun -n 8 ats --xml_file=../input/MYJOBNAME.xml
 date
