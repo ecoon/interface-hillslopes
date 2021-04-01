@@ -1,0 +1,27 @@
+Regions:
+downhill:
+- surface point
+- vertical plane
+- 10cm deep
+- 40cm deep
+- 1m deep
+
+uphill:
+...
+
+- subsurface lateral flow (downhill plane)
+- subsurface lateral flow (uphill plane) (extensive integral of mass_flux) -- 
+
+- surface temperature (uphill & downhill surface point)  (surface-temperature)
+- temperature (uphill & downhill / 10cm, 40cm, 1m ) (temperature)
+
+
+at average, max, uphill, downhill:
+- thaw depth
+- water table depth
+
+at uphill point, downhill point:
+- surface-subsurface exchange (infiltration)   surface-subsurface_flux
+- wetness index / saturated fraction
+
+
