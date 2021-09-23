@@ -51,10 +51,6 @@ def get_filenames(huc, huc_directory, raster_extension='tif'):
     filenames['flowpaths'] = os.path.join(ppm_dir, 'flowpaths', f'hs_{{}}_flowpaths.pkl')
     register_raster('flowpath_length', f'huc_{huc}_flowpath_lengths') # flowpaths within the delineated subcatchments
     register_raster('elev_above_streams', f'huc_{huc}_elev_above_streams')
-
-    filenames['daymet'] = os.path.join(huc_directory, 'daymet', f'huc_{huc}_subcatchment{{}}_1980_2020.h5')
-    filenames['mesh'] = os.path.join(huc_directory, 'mesh', f'sag_hillslope{{}}.exo')
-    
     
     return filenames
 
@@ -163,8 +159,8 @@ def loadSubcatchmentShape(filename, subcatch_id):
 
 
 # Load a subcatchment raster
-def loadSubcatchmentRaster(filename, subcatch_shape, subcatch_crs, nanit=True):
-    profile, raster = workflow.get_raster_on_shape(filename, subcatch_shape, subcatch_crs, mask=True)
+def loadSubcatchmentRaster(filename, subcatch, subcatch_crs, nanit=True):
+    profile, raster = workflow.get_raster_on_shape(filename, subcatch, subcatch_crs, mask=True)
     if nanit:
         raster[raster==profile['nodata']] = np.nan
     return profile, raster
@@ -177,21 +173,24 @@ def parameterizeSubcatchment(filenames, huc, subcatch_id,
                              hillslope_bin_dx=100):
     
     # Find the given subcatchment shape
-    subcatch_crs, subcatch_shape = loadSubcatchmentShape(filenames['subcatchments'], subcatch_id)
+    subcatch_crs, subcatch = loadSubcatchmentShape(filenames['subcatchments'], subcatch_id)
 
     # Create a dictionary icluding all hillslope info and parameters
     hillslope = dict()
     hillslope['huc'] = huc
     hillslope['subcatchment_id'] = subcatch_id
-    hillslope['subcatchment'] = subcatch_shape
-    hillslope['centroid'] = subcatch_shape.centroid.coords[0]     # lat/long, required to get meteorological data
-    hillslope['total_area'] = workflow.warp.shply(subcatch_shape, subcatch_crs, target_crs).area   # m^2
+    hillslope['centroid'] = subcatch.centroid.coords[0]     # lat/long, required to get meteorological data
+    hillslope['subcatchment'] = workflow.warp.shply(subcatch, subcatch_crs, target_crs)
+    hillslope['subcatchment_native_crs'] = subcatch_crs
+    hillslope['subcatchment_target_crs'] = target_crs
+    hillslope['total_area'] = hillslope['subcatchment'].area   # m^2
     
+        
     # Procedures to determine a single hillslope profile geometry for each subcatchment 
     # Most of the parameters are based on bins in length of flowpath to the stream network
     
     # 1. Load raster of flowpath lengths for the given subcatchment
-    fp_profile, fp_lengths = loadSubcatchmentRaster(filenames['flowpath_length'], subcatch_shape, subcatch_crs)
+    fp_profile, fp_lengths = loadSubcatchmentRaster(filenames['flowpath_length'], subcatch, subcatch_crs)
     subcatch_mask = ~np.isnan(fp_lengths)
     hillslope['raster_profile'] = fp_profile
     
@@ -238,7 +237,7 @@ def parameterizeSubcatchment(filenames, huc, subcatch_id,
     
     
     # 5. Average elevation (height over stream) for each bin and save to dictionary
-    _, elevs = loadSubcatchmentRaster(filenames['elev_above_streams'], subcatch_shape, subcatch_crs)
+    _, elevs = loadSubcatchmentRaster(filenames['elev_above_streams'], subcatch, subcatch_crs)
     elev_bins = np.zeros((hillslope['num_bins'],),'d')
     for i in range(hillslope['num_bins']):
         elev_bins[i] = elevs[(hillslope['bins'] == i) & (~np.isnan(elevs))].mean()
@@ -246,11 +245,12 @@ def parameterizeSubcatchment(filenames, huc, subcatch_id,
     hillslope['elevation'] = elev_bins
     
     # 6. Average aspect across the entire subcatchment and save to dictionary
-    _, aspects = loadSubcatchmentRaster(filenames['aspect'], subcatch_shape, subcatch_crs)
+    _, aspects = loadSubcatchmentRaster(filenames['aspect'], subcatch, subcatch_crs)
     hillslope['aspect'] = meanAspect(aspects)
     
     # 7. Get land cover using mode for each bin and save to dictionary
-    lc_profile, lc = loadSubcatchmentRaster(filenames['land_cover'], subcatch_shape, subcatch_crs, False) # don't nan-it
+    lc_profile, lc = loadSubcatchmentRaster(filenames['land_cover'], subcatch, subcatch_crs, False) # don't nan-it
+    
     assert(lc_profile['nodata'] == 255) # uint8, nan is -1 == 255
     # classify land cover into veg classes
     hillslope['lc'] = lc
@@ -265,8 +265,48 @@ def parameterizeSubcatchment(filenames, huc, subcatch_id,
     hillslope['land_cover'] = lc_bins
     hillslope['land_cover_raster'] = landcover.veg2img(lc)
 
-    return hillslope
+    
+    # 8. Smooth subcatchment for easier 3D simulation
+    def smoothSubcatchmentShape(subcatch, subcatch_crs, smoothing_factor=100, plot=False):
+        if type(subcatch) is shapely.geometry.MultiPolygon:
+            subcatch_simp = shapely.ops.cascaded_union(subcatch.buffer(100))
+            if type(subcatch_simp) is shapely.geometry.MultiPolygon:
+                # see if this is one tiny island
+                total_area = sum(p.area for p in subcatch_simp)
+                assert(total_area > 0)
+                polygons = [p for p in subcatch_simp if p.area/total_area > 0.01]
+                if len(polygons) > 1:
+                    # give up, this will throw
+                    return shapely.geometry.MultiPolygon(polygons)
+            
+                subcatch_simp = polygons[0]
+            subcatch_simp = subcatch_simp.simplify(smoothing_factor)
+        else:
+            subcatch_simp = subcatch.simplify(smoothing_factor)
+    
+        # find a buffer value that matches the original area
+        def optimize_func(radius):
+            subcatch_buff = subcatch_simp.buffer(radius).simplify(smoothing_factor)
+            return abs(subcatch_buff.area - subcatch.area)
 
+        res = scipy.optimize.minimize_scalar(optimize_func)
+        subcatch_new = subcatch_simp.buffer(res.x).simplify(smoothing_factor)
+
+        if plot:
+            print("error: ", subcatch.area - subcatch_new.area)
+            fig, ax = workflow.plot.get_ax(crs=subcatch_crs)
+            workflow.plot.shply(subcatch_new, subcatch_crs, 'r', ax=ax)
+            workflow.plot.shply(subcatch, subcatch_crs, 'b', ax=ax)
+        
+        return subcatch_new
+    
+    subcatch_new = smoothSubcatchmentShape(hillslope['subcatchment'], 
+                                           hillslope['subcatchment_target_crs'],
+                                           smoothing_factor=100, plot=False)
+    
+    hillslope['subcatchment_smooth'] = subcatch_new
+        
+    return hillslope
 
 
 

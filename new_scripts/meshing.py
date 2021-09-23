@@ -4,6 +4,7 @@ import hillslopes
 import landcover
 import workflow
 import os
+import matplotlib.pyplot as plt
 
 # Given a hillslope's parameters, generate the mesh parameters
 def parameterizeMesh(hillslope, dx,
@@ -119,7 +120,7 @@ def createHillslopeMesh2D(mesh_pars):
 # The extrusion process is then given four lists, each of length num_layers.
 def layeringStructure(organic_cells=30, organic_cell_dz=0.02, 
                       increase2depth=9.4, increase_cells=20, largest_dz=2.0,
-                      bottom_depth=45):
+                      bottom_depth=46):
     layer_types = []  # a list of strings that tell the extruding code how to do the layers.  
                       # See meshing_ats documentation for more, but here we will use only "constant",
                       # which means that dz within the layer is constant.
@@ -180,8 +181,76 @@ def createColumnMesh(layer_info, filename):
     m3.write_exodus(filename)    
     
     
+# Take mesh parameters and create a 2D subcatchment surface mesh
+def createSubcatchmentMesh2D(filenames, subcatch_smooth, subcatch_crs, mesh_pars, plot=False):
+    # 1. triangulate the subcatchment
+    verts, tris, areas, dist = workflow.triangulate([subcatch_smooth,], list(), refine_max_area = 200)
+    centroids = np.array([verts[t].mean(0) for t in tris])
     
+    # 2. elevate the triangulation
+    dem_profile, dem = workflow.get_raster_on_shape(filenames['dem'], subcatch_smooth,subcatch_crs,
+                                                mask=False)
+    dem_crs = workflow.crs.from_rasterio(dem_profile['crs'])
+    verts3 = workflow.elevate(verts, subcatch_crs, dem, dem_profile)
+    
+    # 3. get a land cover raster
+    lc_profile, lc_raster = workflow.get_raster_on_shape(filenames['land_cover'],
+                                                         subcatch_smooth, subcatch_crs,
+                                                         mask=False)
+    lc = workflow.values_from_raster(centroids, subcatch_crs, lc_raster, lc_profile)
+    lc = lc.astype(int)
+    
+    # 4. renumber from NSSI ids to ATS IDs
+    _, lc = landcover.classifyVegetation(lc)
+    
+    # 5. riparian vs hillslope
+    # 5.1 load raster of flowpath length
+    fpl_profile, fpl_raster = workflow.get_raster_on_shape(filenames['flowpath_length'],
+                                                           subcatch_smooth, subcatch_crs,
+                                                           mask=False)
+                                                
+    fpl = workflow.values_from_raster(centroids, subcatch_crs, fpl_raster, fpl_profile)
+    riparian = np.where(fpl > mesh_pars['riparian_width'], 1, 0)
 
+    # 5.2 riparians are incremented by 10 for unique indices
+    lc = np.where(riparian, 10+lc, lc)
     
-    
-    
+    # 6. label land cover
+    labeled_sets = list()
+    for i,vtype in zip(range(100, 104), landcover.vegClasses()):
+        labeled_sets.append(workflow.mesh.LabeledSet(f'hillslope {vtype}', i, 'CELL',
+                                                     [int(c) for c in np.where(lc == i)[0]]))
+                                                 
+    for i,vtype in zip(range(110, 114), landcover.vegClasses()):
+        labeled_sets.append(workflow.mesh.LabeledSet(f'riparian {vtype}', i, 'CELL',
+                                                     [int(c) for c in np.where(lc == i)[0]]))
+        
+    # 7. create surface mesh
+    m2 = workflow.mesh.Mesh2D(verts3, tris, labeled_sets=labeled_sets)
+    if plot:
+        fig = plt.figure(figsize=(6,6))
+        ax = workflow.plot.get_ax('3d', fig)
+        cax = fig.add_axes([1.1,0.3,0.03,0.5])
+        mp = ax.plot_trisurf(verts3[:,0], verts3[:,1], verts3[:,2],
+                             triangles=tris, cmap='viridis',
+                             edgecolor=(0,0,0,.2), linewidth=0.5)
+
+        cb = fig.colorbar(mp, orientation="vertical", cax=cax)
+        t = cax.set_title('elevation [m]')
+     
+    return m2, lc
+
+
+
+# Extrude 2D subcatchment suface mesh to create 3D subcatchment mesh
+def createSubcatchmentMesh3D(m2, lc, layer_info, mesh_fname):
+    if os.path.isfile(mesh_fname):
+        os.remove(mesh_fname)
+        
+    layer_types, layer_data, layer_ncells = layer_info
+    assert(len(lc) == m2.num_cells())
+    layer_mat = np.array([landcover.soilStructure(layer_data, lc[c]) for c in range(m2.num_cells())]).transpose()
+    layer_mat_ids = list(layer_mat)
+    m3 = workflow.mesh.Mesh3D.extruded_Mesh2D(m2, layer_types, layer_data, layer_ncells, layer_mat_ids)
+    m3.write_exodus(mesh_fname)
+        

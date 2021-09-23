@@ -36,7 +36,7 @@ def classifyVegetation(lc):
             lc_remap[lc == veg_id] = ats_id
     missing_id = set(lc[[lc_remap == 0]])
     for mid in missing_id:
-        raise RuntimeError(f'Missing vegetation id {mid} type {id_to_name[mid]}')
+        print(f'Missing vegetation id {mid} type: ', id_to_name[mid])
         
     return len(missing_id), lc_remap
 
