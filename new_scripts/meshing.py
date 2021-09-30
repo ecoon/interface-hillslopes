@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 
 # Given a hillslope's parameters, generate the mesh parameters
 def parameterizeMesh(hillslope, dx,
-                     riparian_slope_min=0.01,
-                     hillslope_slope_min=0.1,
+                     toeslope_min_slope=0.0,
+                     hillslope_min_slope=0.1,
                      min_area_ratio=0.1):
     mesh = dict()
     
@@ -26,30 +26,30 @@ def parameterizeMesh(hillslope, dx,
     x_bin = np.concatenate([np.array([0.,]), (np.arange(0,hillslope['num_bins']) + 0.5)*hillslope['bin_dx']])
     z_bin = np.concatenate([np.array([0.,]), hillslope['elevation']])
     z_native = np.interp(mesh['x'], x_bin, z_bin)
-    z = scipy.signal.savgol_filter(z_native, window_length=11, polyorder=3)
-    z = z - z[0]
+    mesh['z_native'] = z_native
+    z = scipy.signal.savgol_filter(mesh['z_native'], window_length=11, polyorder=3)
     
     # 2.2 Determine riparian area and hillslope area according to slope
-    slope = (z[1:] - z[0:-1]) / (mesh['x'][1:] - mesh['x'][0:-1])
+    for i in range(1,int(np.round(len(z)/2))):
+        if z[i] < toeslope_min_slope * (mesh['x'][i] - mesh['x'][i-1]) + z[i-1]:
+            z[i] = toeslope_min_slope * (mesh['x'][i] - mesh['x'][i-1]) + z[i-1]
+    for i in range(int(np.round(len(z)/2)),len(z)):
+        if z[i] < hillslope_min_slope * (mesh['x'][i] - mesh['x'][i-1]) + z[i-1]:
+            z[i] = hillslope_min_slope * (mesh['x'][i] - mesh['x'][i-1]) + z[i-1]        
+    mesh['z'] = scipy.signal.savgol_filter(z, 5, 3)
+    
+    slope = (mesh['z'][1:] - mesh['z'][0:-1]) / (mesh['x'][1:] - mesh['x'][0:-1])
     riparian = np.zeros(slope.shape, 'i')
     i = 0
-    while i < len(slope) and slope[i] < 0.1:     # in the riparian zone
+    while slope[i] < 0.1:
         riparian[i] = 1
-        if slope[i] < riparian_slope_min:
-            z[i+1] = riparian_slope_min * (mesh['x'][i+1] - mesh['x'][i]) + z[i]
         i += 1
-        
+    mesh['riparian'] = riparian
     if i == 1:
         mesh['riparian_width'] = 0
     else:
         mesh['riparian_width'] = (mesh['x'][i-1] + mesh['x'][i])/2.
-    
-    while i < len(slope):   # hillslope starts from here 
-        if slope[i] < hillslope_slope_min:
-            z[i+1] = hillslope_slope_min * (mesh['x'][i+1] - mesh['x'][i]) + z[i]
-        i += 1
         
-    mesh['riparian'] = riparian
     
     # smooth z once more to deal with discontinuities
     z = scipy.signal.savgol_filter(z, window_length=5, polyorder=3)
@@ -73,7 +73,7 @@ def parameterizeMesh(hillslope, dx,
     mesh['y'] = y
     
     # 4. Resample land cover onto mesh
-    land_cover_mesh = np.zeros(slope.shape, 'i')
+    land_cover_mesh = np.zeros(len(mesh['x'])-1, 'i')
     def lc_index(lc_type, is_riparian):
         if is_riparian:
             return lc_type + 10
@@ -182,14 +182,20 @@ def createColumnMesh(layer_info, filename):
     
     
 # Take mesh parameters and create a 2D subcatchment surface mesh
-def createSubcatchmentMesh2D(filenames, subcatch_smooth, subcatch_crs, mesh_pars, plot=False):
+def createSubcatchmentMesh2D(filenames, subcatch_smooth, subcatch_crs, mesh_pars, 
+                             refine_max_area = 200, plot=False):
     # 1. triangulate the subcatchment
-    verts, tris, areas, dist = workflow.triangulate([subcatch_smooth,], list(), refine_max_area = 200)
+    verts, tris, areas, dist = workflow.triangulate([subcatch_smooth,], list(), refine_max_area = refine_max_area)
     centroids = np.array([verts[t].mean(0) for t in tris])
     
     # 2. elevate the triangulation
     dem_profile, dem = workflow.get_raster_on_shape(filenames['dem'], subcatch_smooth,subcatch_crs,
                                                 mask=False)
+    index = (dem!=-9999).argmax(axis=1)
+    for i in range(dem.shape[0]):
+        for j in range(dem.shape[1]):
+            if dem[i][j] == -9999:
+                dem[i][j] = dem[i][index[i]]
     dem_crs = workflow.crs.from_rasterio(dem_profile['crs'])
     verts3 = workflow.elevate(verts, subcatch_crs, dem, dem_profile)
     
