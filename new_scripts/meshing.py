@@ -181,28 +181,53 @@ def createColumnMesh(layer_info, filename):
     m3.write_exodus(filename)    
     
     
+# Smooth DEM data
+def smoothDEM(dem):
+    dem1 = dem.copy()
+    nodata = 0
+    for i in range(len(dem1)):
+        if len(list(set(dem1[i]))) == 1 and list(set(dem1[i]))[0] == -9999:
+            nodata += 1
+            
+        else:
+            if dem1[i][0] == -9999:
+                index = (dem1[i]!=-9999).argmax()
+                dem1[i][:index] = dem1[i][index]+0.5
+            
+            if dem1[i][-1] == -9999:
+                index = (dem1[i][::-1]!=-9999).argmax()
+                dem1[i][-index:] = dem1[i][-index-1]-0.5
+            
+            if -9999 in dem1[i]:
+                index1 = np.where(dem1[i] == -9999)[0][0]
+                index2 = np.where(dem1[i] == -9999)[0][-1]
+                d = (dem1[i][index2+1] - dem1[i][index1-1])/(index2-index1+3)
+                for j in range(index1, index2+1):
+                    dem1[i][j] = dem1[i][index1-1]+(j-index1+1)*d            
+                        
+    return nodata, dem1
+    
 # Take mesh parameters and create a 2D subcatchment surface mesh
-def createSubcatchmentMesh2D(filenames, subcatch_smooth, subcatch_crs, mesh_pars, 
-                             refine_max_area = 200, plot=False):
+def createSubcatchmentMesh2D(filenames, subcatch, subcatch_crs, mesh_pars, 
+                             refine_max_area = 200, tol = 1, plot=False):
     # 1. triangulate the subcatchment
-    verts, tris, areas, dist = workflow.triangulate([subcatch_smooth,], list(), refine_max_area = refine_max_area)
+    verts, tris, areas, dist = workflow.triangulate([subcatch,], list(), tol = tol,
+                                                    refine_max_area = refine_max_area)
     centroids = np.array([verts[t].mean(0) for t in tris])
     
     # 2. elevate the triangulation
-    dem_profile, dem = workflow.get_raster_on_shape(filenames['dem'], subcatch_smooth,subcatch_crs,
-                                                mask=False)
-    index = (dem!=-9999).argmax(axis=1)
-    for i in range(dem.shape[0]):
-        for j in range(dem.shape[1]):
-            if dem[i][j] == -9999:
-                dem[i][j] = dem[i][index[i]]
+    dem_profile, dem0 = workflow.get_raster_on_shape(filenames['dem'], subcatch,
+                                                     subcatch_crs, mask=False)
+
+    nodem, dem = smoothDEM(dem0)
+    
     dem_crs = workflow.crs.from_rasterio(dem_profile['crs'])
     verts3 = workflow.elevate(verts, subcatch_crs, dem, dem_profile)
     
     # 3. get a land cover raster
-    lc_profile, lc_raster = workflow.get_raster_on_shape(filenames['land_cover'],
-                                                         subcatch_smooth, subcatch_crs,
-                                                         mask=False)
+    lc_profile, lc_raster = workflow.get_raster_on_shape(filenames['land_cover'],subcatch,
+                                                         subcatch_crs,mask=False)
+                                                         
     lc = workflow.values_from_raster(centroids, subcatch_crs, lc_raster, lc_profile)
     lc = lc.astype(int)
     
@@ -211,9 +236,9 @@ def createSubcatchmentMesh2D(filenames, subcatch_smooth, subcatch_crs, mesh_pars
     
     # 5. riparian vs hillslope
     # 5.1 load raster of flowpath length
-    fpl_profile, fpl_raster = workflow.get_raster_on_shape(filenames['flowpath_length'],
-                                                           subcatch_smooth, subcatch_crs,
-                                                           mask=False)
+    fpl_profile, fpl_raster = workflow.get_raster_on_shape(filenames['flowpath_length'],subcatch,
+                                                           subcatch_crs,mask=False)
+                                                           
                                                 
     fpl = workflow.values_from_raster(centroids, subcatch_crs, fpl_raster, fpl_profile)
     riparian = np.where(fpl > mesh_pars['riparian_width'], 1, 0)
@@ -244,7 +269,7 @@ def createSubcatchmentMesh2D(filenames, subcatch_smooth, subcatch_crs, mesh_pars
         cb = fig.colorbar(mp, orientation="vertical", cax=cax)
         t = cax.set_title('elevation [m]')
      
-    return m2, lc
+    return nodem, m2, lc
 
 
 

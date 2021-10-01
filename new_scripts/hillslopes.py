@@ -170,7 +170,8 @@ def loadSubcatchmentRaster(filename, subcatch, subcatch_crs, nanit=True):
 def parameterizeSubcatchment(filenames, huc, subcatch_id,
                              target_crs=workflow.crs.default_alaska_crs(),
                              hillslope_keep_fraction=0.95,
-                             hillslope_bin_dx=100):
+                             hillslope_bin_dx=100,
+                             plot_smoothed=False):
     
     # Find the given subcatchment shape
     subcatch_crs, subcatch = loadSubcatchmentShape(filenames['subcatchments'], subcatch_id)
@@ -267,7 +268,7 @@ def parameterizeSubcatchment(filenames, huc, subcatch_id,
 
     
     # 8. Smooth subcatchment for easier 3D simulation
-    def smoothSubcatchmentShape(subcatch, subcatch_crs, smoothing_factor=100, plot=False):
+    def smoothSubcatchmentShape(subcatch, subcatch_crs, smoothing_factor=100, plot=plot_smoothed):
         if type(subcatch) is shapely.geometry.MultiPolygon:
             subcatch_simp = shapely.ops.cascaded_union(subcatch.buffer(100))
             if type(subcatch_simp) is shapely.geometry.MultiPolygon:
@@ -302,7 +303,7 @@ def parameterizeSubcatchment(filenames, huc, subcatch_id,
     
     subcatch_new = smoothSubcatchmentShape(hillslope['subcatchment'], 
                                            hillslope['subcatchment_target_crs'],
-                                           smoothing_factor=100, plot=False)
+                                           smoothing_factor=100, plot=plot_smoothed)
     
     hillslope['subcatchment_smooth'] = subcatch_new
         
